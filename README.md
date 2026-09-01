@@ -2,11 +2,41 @@
 
 This repository now contains a simple Arduino sketch for the **ESP32-2432S028R "Cheap Yellow Display" (CYD)** that:
 
+- imports MP4 source videos into an SD-card-friendly format
 - scans the SD card for media clips
 - shuffles them into a random order
 - plays each clip on the built-in ILI9341 display
 - plays optional companion WAV audio on a speaker through the ESP32 DAC
 - loops forever like a tiny offline random media player
+
+## MP4 support
+
+The CYD cannot practically decode raw H.264/AAC `.mp4` files directly on the ESP32.
+
+This repository now supports **MP4 as the input format you prepare on your computer**:
+
+1. put one or more `.mp4` files on your computer
+2. run the converter script in this repo
+3. copy the generated `/media/...` folders to the SD card
+4. boot the CYD and it plays them in random order
+
+Generate the SD-card clips with:
+
+```bash
+python /path/to/your/clone/tools/prepare_mp4_for_sd.py \
+  --input /path/to/video1.mp4 /path/to/video2.mp4 \
+  --output /path/to/sd-card-root
+```
+
+That creates:
+
+```text
+/path/to/sd-card-root/media/<video-name>/
+```
+
+with numbered JPEG frames, optional `audio.wav`, and `fps.txt`.
+
+Use `--dry-run` to print the `ffmpeg` commands without running them.
 
 ## Supported media layout
 
@@ -84,15 +114,28 @@ The sketch is set up for the common ILI9341 CYD wiring:
 
 Press the **BOOT** button to skip to the next random clip.
 
-## Converting a video into a clip
+## Converting MP4 files for the player
 
-Example with `ffmpeg`:
+Example:
 
 ```bash
-mkdir -p clip01
-ffmpeg -i input.mp4 -vf "fps=12,scale=320:240:force_original_aspect_ratio=decrease,pad=320:240:(ow-iw)/2:(oh-ih)/2:black" clip01/%04d.jpg
-ffmpeg -i input.mp4 -ac 1 -ar 22050 -c:a pcm_s16le clip01/audio.wav
-printf "12\n" > clip01/fps.txt
+python /path/to/your/clone/tools/prepare_mp4_for_sd.py \
+  --input /videos/input.mp4 \
+  --output /tmp/cyd-sd \
+  --fps 12
 ```
 
-Then copy `clip01` into `/media` on the SD card.
+Then copy `/tmp/cyd-sd/media` to the SD card root.
+
+### Requirements for the converter
+
+- `python`
+- `ffmpeg`
+
+### What the converter does
+
+- scales the video into a 320x240 letterboxed output
+- extracts numbered JPEG frames
+- writes mono 22050 Hz PCM WAV audio
+- writes `fps.txt`
+- creates a folder name that is safe for FAT-formatted SD cards
