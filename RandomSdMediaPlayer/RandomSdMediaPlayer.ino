@@ -6,8 +6,40 @@
 #include <driver/i2s.h>
 #include <string.h>
 
+// Select the board wiring: BOARD_CYD_28 for the 2.8" ILI9341 CYD (ESP32-2432S028R),
+// BOARD_CYD_35 for the 3.5" 320x480 resistive-touch "ESP32-32E" board (ESP32-3248S035R).
+#define BOARD_CYD_35
+
 namespace
 {
+#if defined(BOARD_CYD_35)
+constexpr int TFT_DC = 2;
+constexpr int TFT_CS = 15;
+constexpr int TFT_SCK = 14;
+constexpr int TFT_MOSI = 13;
+constexpr int TFT_MISO = 12;
+constexpr int TFT_BACKLIGHT = 27;
+
+constexpr int SD_CS = 5;
+constexpr int SD_SCK = 18;
+constexpr int SD_MOSI = 23;
+constexpr int SD_MISO = 19;
+
+constexpr int BOOT_BUTTON = 0;
+constexpr uint32_t BUTTON_DEBOUNCE_MS = 350;
+
+constexpr uint32_t DISPLAY_SPI_SPEED = 40000000UL;
+constexpr uint32_t SD_SPI_SPEED = 20000000UL;
+
+constexpr const char *MEDIA_ROOT = "/media";
+constexpr uint16_t DEFAULT_FPS = 12;
+constexpr size_t MAX_MEDIA_ITEMS = 24;
+constexpr i2s_port_t AUDIO_PORT = I2S_NUM_0;
+// This board's speaker header is wired to GPIO26 (DAC2 / left channel).
+constexpr i2s_dac_mode_t AUDIO_DAC_CHANNEL = I2S_DAC_CHANNEL_LEFT_EN; // GPIO26
+constexpr i2s_channel_fmt_t AUDIO_CHANNEL_FORMAT =
+    AUDIO_DAC_CHANNEL == I2S_DAC_CHANNEL_LEFT_EN ? I2S_CHANNEL_FMT_ONLY_LEFT : I2S_CHANNEL_FMT_ONLY_RIGHT;
+#else
 constexpr int TFT_DC = 2;
 constexpr int TFT_CS = 15;
 constexpr int TFT_SCK = 14;
@@ -33,6 +65,8 @@ constexpr i2s_port_t AUDIO_PORT = I2S_NUM_0;
 constexpr i2s_dac_mode_t AUDIO_DAC_CHANNEL = I2S_DAC_CHANNEL_RIGHT_EN; // GPIO25
 constexpr i2s_channel_fmt_t AUDIO_CHANNEL_FORMAT =
     AUDIO_DAC_CHANNEL == I2S_DAC_CHANNEL_LEFT_EN ? I2S_CHANNEL_FMT_ONLY_LEFT : I2S_CHANNEL_FMT_ONLY_RIGHT;
+constexpr uint8_t DISPLAY_ROTATION = 1;
+#endif
 } // namespace
 
 struct MediaClip
@@ -57,7 +91,11 @@ struct AudioPlayback
 SPIClass displaySpi(HSPI);
 SPIClass sdSpi(VSPI);
 Arduino_DataBus *displayBus = new Arduino_HWSPI(TFT_DC, TFT_CS, TFT_SCK, TFT_MOSI, TFT_MISO, &displaySpi, true);
+#if defined(BOARD_CYD_35)
+Arduino_GFX *gfx = new Arduino_ST7796(displayBus, GFX_NOT_DEFINED /* RST */, 0);
+#else
 Arduino_GFX *gfx = new Arduino_ILI9341(displayBus);
+#endif
 JPEGDEC jpeg;
 
 MediaClip clips[MAX_MEDIA_ITEMS];
@@ -739,7 +777,7 @@ void setup()
     }
   }
 
-  gfx->setRotation(1);
+  gfx->setRotation(DISPLAY_ROTATION);
   showStatus("Starting random player");
 
   sdSpi.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);

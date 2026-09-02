@@ -13,6 +13,7 @@ DEFAULT_WIDTH = 320
 DEFAULT_HEIGHT = 240
 DEFAULT_FPS = 12
 DEFAULT_AUDIO_RATE = 22050
+SUPPORTED_INPUT_EXTENSIONS = {".mp4", ".mkv", ".mov", ".avi", ".webm", ".m4v"}
 
 
 def sanitize_name(name: str) -> str:
@@ -141,8 +142,9 @@ def validate_args(args: argparse.Namespace) -> list[Path]:
     sources: list[Path] = []
     for raw_source in args.input:
         source = Path(raw_source).expanduser().resolve()
-        if source.suffix.lower() != ".mp4":
-            raise ValueError(f"Input is not an .mp4 file: {source}")
+        if source.suffix.lower() not in SUPPORTED_INPUT_EXTENSIONS:
+            supported = ", ".join(sorted(SUPPORTED_INPUT_EXTENSIONS))
+            raise ValueError(f"Unsupported input container ({source.suffix}): {source}. Supported: {supported}")
         if not source.is_file():
             raise FileNotFoundError(f"Input file not found: {source}")
         sources.append(source)

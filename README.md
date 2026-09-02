@@ -74,6 +74,19 @@ The sketch supports **PCM WAV** audio:
 
 By default it uses the ESP32 built-in DAC on **GPIO25**. If your CYD speaker amp is wired to the other DAC pin, switch the constant in the sketch to `I2S_DAC_CHANNEL_LEFT_EN` for **GPIO26**. The sketch routes the audio channel to the matching DAC automatically.
 
+### Wiring the XYJ-XK01 speaker amplifier
+
+The XYJ-XK01 is a small class-D amplifier board (analog line-in, not I2S), so it wires directly to the ESP32 DAC output that the sketch already produces:
+
+- module `VCC` → ESP32 `5V`
+- module `GND` → ESP32 `GND` (must share ground with the CYD board)
+- module audio input (often labeled `IN`, `AIN`, or `L`) → ESP32 `GPIO25` (the DAC pin the sketch uses by default)
+- module speaker output terminals → the small speaker
+
+If the board has separate `L`/`R` input pads, connect only one channel — the sketch already mixes stereo WAV files down to mono before sending them to the DAC, so a single input pad is enough. Many of these boards expect an AC-coupled line-level input; if you hear a hum/hiss with no board-side coupling capacitor, add a 1–10 µF capacitor in series between `GPIO25` and the module's audio input pad.
+
+Some boards ship with the pins labeled differently — check the silkscreen on your specific unit against `VCC`/`GND`/`IN`/`OUT+`/`OUT-` before wiring.
+
 ## Required Arduino libraries
 
 Install these from the Arduino Library Manager:
@@ -102,6 +115,32 @@ The sketch is set up for the common ILI9341 CYD wiring:
 - SD MOSI: `GPIO23`
 - SD MISO: `GPIO19`
 - BOOT button: `GPIO0`
+
+## Hardware defaults for the 3.5" 320x480 board (ESP32-3248S035R "ESP32-32E")
+
+If your board is the larger 3.5" resistive-touch unit (silkscreen: "3.5" LCD Display ESP32-32E 320x480 Resistance Touch", ST7796 controller), the sketch auto-selects this wiring when `BOARD_CYD_35` is defined at the top of the `.ino` file (this is the default). To switch back to the 2.8" ILI9341 CYD, comment out that `#define`.
+
+- TFT DC: `GPIO2`
+- TFT CS: `GPIO15`
+- TFT SCK: `GPIO14`
+- TFT MOSI: `GPIO13`
+- TFT MISO: `GPIO12`
+- TFT backlight: `GPIO27`
+- SD CS: `GPIO5`
+- SD SCK: `GPIO18`
+- SD MOSI: `GPIO23`
+- SD MISO: `GPIO19`
+- BOOT button: `GPIO0`
+- Speaker header: `GPIO26` (DAC2 / left channel) — this is where the onboard "Speaker Interface" connector (and your XYJ-XK01 amp) is wired, so no extra wiring is needed beyond what's already plugged in
+- Native panel resolution is 320x480 portrait. The sketch keeps it in portrait (`DISPLAY_ROTATION = 0`) with the connector edge (USB/SD/battery) down and the ESP32 module up. If the image comes up upside-down on your unit, change `DISPLAY_ROTATION` to `2` in the `.ino` file.
+
+Since this board has an onboard FM8002A amplifier chip feeding that speaker header already, the XYJ-XK01 is effectively a second amplifier stage. If audio sounds distorted or too quiet, try connecting a bare 8Ω speaker directly to that header instead of routing through the XYJ-XK01.
+
+When using this board, generate your SD clips at the native portrait resolution so anime fills the screen without letterboxing:
+
+```bash
+python tools/prepare_mp4_for_sd.py --input episode.mp4 --output /path/to/sd-card-root --width 320 --height 480 --fps 15
+```
 
 ## Build and upload
 
@@ -139,3 +178,17 @@ Then copy `/tmp/cyd-sd/media` to the SD card root.
 - writes mono 22050 Hz PCM WAV audio
 - writes `fps.txt`
 - creates a folder name that is safe for FAT-formatted SD cards
+
+## Auto-converting a folder (drop files in and walk away)
+
+Instead of running the converter per file, point `tools/watch_and_convert.py` at a folder (e.g. your downloads folder) and it converts any new video dropped there, automatically:
+
+```bash
+python tools/watch_and_convert.py --watch-folder /path/to/downloads --output /path/to/sd-card-root --width 320 --height 480 --fps 15
+```
+
+- It scans the folder every few seconds for new `.mp4`/`.mkv`/`.mov`/`.avi`/`.webm`/`.m4v` files.
+- It waits until a file's size stops changing before converting, so it won't grab a half-downloaded/half-copied file.
+- After converting, it moves the original into a `converted/` subfolder inside the watch folder so it's never re-processed.
+- Leave it running in a terminal; press `Ctrl+C` to stop watching.
+
